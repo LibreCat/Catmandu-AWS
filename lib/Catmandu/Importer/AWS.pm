@@ -14,18 +14,13 @@ with 'Catmandu::Importer';
 
 # Constants. ------------------------------------------------------------------
 
-use constant BASE_URL => 'http://webservices.amazon.com/onca/xml';
+use constant DEFAULT_URL => 'http://webservices.amazon.com/onca/xml';
 
 # Properties. -----------------------------------------------------------------
 
+has AWSRequestUrl => (is => 'ro', default => sub { return DEFAULT_URL; });
 has AWSAccessKeyId => (is => 'ro', required => 1);
 has AWSSecretAccessKey => (is => 'ro', required => 1);
-
-has ContentType => (is => 'ro', required => 1);
-has Operation => (is => 'ro', required => 1);
-has Service => (is => 'ro', required => 1);
-has Version => (is => 'ro', required => 1);
-
 
 has unsigned_request => (is => 'ro', lazy => 1, builder => '_unsigned_request');
 has canonical_string => (is => 'ro', lazy => 1, builder => '_canonical_string');
@@ -38,8 +33,8 @@ has results => (is => 'ro', lazy => 1, builder => '_send_request');
 sub _unsigned_request {
   my ($self, %params) = @_;
 
-  my $req = $self->aws_end_point;
-  $req += '?Service=' . $self->service;
+  my $req = $self->AWSRequestUrl.'?';
+  $req += 'Service=' . $self->service;
   $req += '&AWSAccessKeyId=' . $self->aws_access_key_id;
   $req += '&Operation=' . $self->service;
 
@@ -55,12 +50,18 @@ sub _canonical_string {
   my $timestamp = $self->construct_timestamp();
 
   # URL encode , and : characters.
+  $canonical = $self->url_encode($canonical);
 
   # Split the parameter/value pairs and delete the ampersand characters.
 
   # Sort your parameter/value pairs by byte value.
+  my %sorted_parameters;
+  foreach my $key (sort keys %parameters) {
+
+  }
 
   # Rejoin the sorted parameter/value list with ampersands. The result is the canonical string that we'll sign.
+  %sorted_parameters.join('&');
 
   # Prepend the following three lines (with line breaks) before the canonical string.
   $canonical = "GET\nwebservices.amazon.com\n/onca/xml\n$canonical";
@@ -147,7 +148,7 @@ sub hashify {
   my $out = $xs->XMLin(
     $in,
     KeyAttr => [],
-    ForceArray => [ 'entry' ]
+    ForceArray => [ 'Item' ]
   );
 
   return $out;
