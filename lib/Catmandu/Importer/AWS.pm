@@ -10,6 +10,8 @@ use Digest;
 use Digest::SHA qw(hmac_sha256_base64);
 use URI::Escape qw(uri_escape_utf8);
 
+# use Data::Dumper;
+
 with 'Catmandu::Importer';
 
 # Constants. ------------------------------------------------------------------
@@ -31,50 +33,59 @@ has results => (is => 'ro', lazy => 1, builder => '_send_request');
 # Internal Methods. -----------------------------------------------------------
 
 sub _unsigned_request {
-  my ($self, %params) = @_;
+  my ($self) = @_;
 
-  my $req = $self->AWSRequestUrl.'?';
-  $req += 'Service=' . $self->service;
-  $req += '&AWSAccessKeyId=' . $self->aws_access_key_id;
-  $req += '&Operation=' . $self->service;
+  my $params = $self->{requestParams};
 
-  return req;
+  my $req = $self->AWSRequestUrl . '?';
+  $req .= 'AWSAccessKeyId=' . $self->AWSAccessKeyId;
+
+  while (my ($k, $v) = each %$params) {
+    $req .= '&' . $self->url_encode($k) . "=" . $self->url_encode($v);
+  }
+
+  # print 'UNSIGNED REQUEST: ' . Dumper($req) . "\n";
+
+  return $req;
 }
 
 sub _canonical_string {
   my ($self) = @_;
 
-  my $canonical = $self->unsigned_request;
+  my $params = $self->{requestParams};
+
+  # Append the AWSAccessKeyId.
+  $params->{AWSAccessKeyId} = $self->AWSAccessKeyId;
 
   # Append the timestamp.
-  my $timestamp = $self->construct_timestamp();
+  $params->{Timestamp} = $self->construct_timestamp();
 
-  # URL encode , and : characters.
-  $canonical = $self->url_encode($canonical);
-
-  # Split the parameter/value pairs and delete the ampersand characters.
-
-  # Sort your parameter/value pairs by byte value.
-  my %sorted_parameters;
-  foreach my $key (sort keys %parameters) {
-
+  my @parts;
+  while (my ($k, $v) = each %$params) {
+    # URL encode , and : characters.
+    my $x = $self->url_encode($k) . "=" . $self->url_encode($v);
+    push @parts, $x;
   }
 
-  # Rejoin the sorted parameter/value list with ampersands. The result is the canonical string that we'll sign.
-  %sorted_parameters.join('&');
+  # Rejoin the sorted parameter/value list with ampersands.
+  my $canonical = join('&', sort @parts);
 
-  # Prepend the following three lines (with line breaks) before the canonical string.
-  $canonical = "GET\nwebservices.amazon.com\n/onca/xml\n$canonical";
+  # print 'CANONICAL: ' . Dumper($canonical) . "\n";
 
-  # return the canonical string.
+  # The result is the canonical string that we'll sign.
   return $canonical;
 }
 
 sub _signature {
   my ($self) = @_;
 
+  # Prepend the following three lines (with line breaks) before the canonical string.
+  my $str_to_sign = "GET\nwebservices.amazon.com\n/onca/xml\n" . $self->canonical_string;
+
+  # print 'STR_TO_SIGN: ' . Dumper($str_to_sign) . "\n";
+
   # Calculate an RFC 2104-compliant HMAC with the SHA256 hash algorithm using the Secret Access Key.
-  my $signature = hmac_sha256_base64($self->canonical_string, $self->AWSSecretAccessKey);
+  my $signature = hmac_sha256_base64($str_to_sign, $self->AWSSecretAccessKey);
 
   # Digest::MMM modules do not pad their base64 output, so we do
   # it ourselves to keep the service happy.
@@ -91,10 +102,10 @@ sub _signed_request {
 
   # Add the URL encoded signature to your request, and the result is a properly-formatted signed request.
   my $original_request = $self->unsigned_request;
-  my $signed_request = $original_request . '&Signature' . $url_encoded_signature;
+  my $signed_request = $original_request . '&Signature=' . $url_encoded_signature;
 
   # return properly-formatted signed request.
-  return $signed;
+  return $signed_request;
 }
 
 sub _send_request {
@@ -102,13 +113,44 @@ sub _send_request {
 
   # Send the signed request to AWS.
   my $signed_request = $self->signed_request;
-  my $results = $self->get($signed_request);
+
+  # print 'SIGNED REQUEST: ' . Dumper($signed_request) . "\n";
+
+  my $results = $self->get($signed_request)->content;
+
+  # print 'AMAZON RESPONSE (XML): ' . Dumper($results) . "\n";
 
   # Convert XML to Perl Hash.
   $results = $self->hashify($results);
 
   # Return results hash.
   return $results;
+}
+
+# Public Methods. --------------------------------------------------------------
+
+sub to_array {
+  return [$_[0]->_get_record];
+}
+
+sub generator {
+  my ($self) = @_;
+  my $return = 1;
+
+  return sub {
+    # hack to make iterator stop.
+    if ($return) {
+      $return = 0;
+      return $self->_send_request;
+    }
+    return undef;
+  };
+}
+
+sub fetch {
+  my ($self, $params) = @_;
+  $self->{requestParams} = $params;
+  return $self;
 }
 
 # Helper methods. -------------------------------------------------------------
@@ -163,8 +205,8 @@ Catmandu::Importer::AWS - Package that imports data for AWS.
 =head1 SYNOPSIS
 
   my %params = (
-    aws_access_key_id => '[your-access-key-id]',
-    aws_secret_access_key => '[your-secret-access-key]',
+    AWSAccessKeyId => '[your-access-key-id]',
+    AWSSecretAccessKey => '[your-secret-access-key]',
     Service => 'AWSECommerceService',
     Operation => 'ItemLookup',
     Version => '2009-03-31',
@@ -182,7 +224,7 @@ Catmandu::Importer::AWS - Package that imports data for AWS.
 
 =head1 INTERNALS
 
-  1. Enter the timestamp.
+  1. Append the timestamp.
 
   2. URL encode , and : characters.
 
