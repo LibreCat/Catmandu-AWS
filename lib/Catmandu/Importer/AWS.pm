@@ -204,23 +204,25 @@ Catmandu::Importer::AWS - Package that imports data for AWS.
 
 =head1 SYNOPSIS
 
-  my %params = (
-    AWSAccessKeyId => '[your-access-key-id]',
-    AWSSecretAccessKey => '[your-secret-access-key]',
+  my $aws = Catmandu::Importer::AWS->new({
+    AWSAccessKeyId => '[AWSAccessKeyId]',
+    AWSSecretAccessKey => '[AWSSecretAccessKey]',
+  });
+
+  my $request_params = {
     Service => 'AWSECommerceService',
     Operation => 'ItemLookup',
-    Version => '2009-03-31',
-    ItemId => $itemId,
-    ResponseGroup => 'Small',
-  );
+    ItemId => 'B000Q678OO',
+    ResponseGroup => 'ItemAttributes,Images',
+    AssociateTag => 'Title',
+    Version => '2011-08-01',
+  };
 
-  my $importer = Catmandu::Importer::AWS->new(%params);
-
-  my $n = $importer->each(sub {
+  my $n = $aws->fetch($request_params)->each(sub {
     print Dumper($_[0]);
   });
 
-  print "DONE. $n \n"
+  print "DONE. $n \n";
 
 =head1 INTERNALS
 
