@@ -130,7 +130,7 @@ sub _send_request {
 # Public Methods. --------------------------------------------------------------
 
 sub to_array {
-  return [$_[0]->_get_record];
+  return [$_[0]->_send_request];
 }
 
 sub generator {
@@ -187,11 +187,7 @@ sub hashify {
   my ($self, $in) = @_;
 
   my $xs = XML::LibXML::Simple->new();
-  my $out = $xs->XMLin(
-    $in,
-    KeyAttr => [],
-    ForceArray => [ 'Item' ]
-  );
+  my $out = $xs->XMLin($in);
 
   return $out;
 }

@@ -5,8 +5,8 @@ use Catmandu::Importer::AWS;
 use Data::Dumper::Simple;
 
 my $aws = Catmandu::Importer::AWS->new({
-  AWSAccessKeyId => '[AWSAccessKeyId]',
-  AWSSecretAccessKey => '[AWSSecretAccessKey]',
+  AWSAccessKeyId => $ENV{'AWS_ID'},
+  AWSSecretAccessKey => $ENV{'AWS_SECRET'},
 });
 
 my $request_params = {
